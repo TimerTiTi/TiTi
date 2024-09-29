@@ -8,6 +8,7 @@
 
 import UIKit
 import Combine
+import Moya
 
 final class SettingUpdateHistoryVC: UIViewController {
     static let identifier = "SettingUpdateHistoryVC"
@@ -58,9 +59,12 @@ extension SettingUpdateHistoryVC {
     }
     
     private func configureViewModel() {
-        // MARK: NetworkController 주입 고민이 필요
-        let networkController = NetworkController(network: Network())
-        self.viewModel = SettingUpdateHistoryVM(networkController: networkController)
+        // TODO: DI 수정
+        let api = TTProvider<FirebaseAPI>(session: Session(interceptor: NetworkInterceptor.shared))
+        let repository = FirebaseRepository(api: api)
+        let getUpdateHistorysUseCase = GetUpdateHistorysUseCase(repository: repository)
+        
+        self.viewModel = SettingUpdateHistoryVM(getUpdateHistorysUseCase: getUpdateHistorysUseCase)
     }
     
     private func stopLoader() {

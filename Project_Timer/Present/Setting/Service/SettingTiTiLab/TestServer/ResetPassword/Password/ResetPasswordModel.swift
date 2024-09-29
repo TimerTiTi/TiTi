@@ -42,12 +42,14 @@ final class ResetPasswordModel: ObservableObject {
     
     @Published var password: String = ""
     @Published var password2: String = ""
+    // Combine binding
+    private var cancellables = Set<AnyCancellable>()
     
-    let authUseCase: AuthUseCaseInterface
+    private let updatePasswordUseCase: UpdatePasswordUseCase
     private let infos: ResetPasswordInfosForPassword
     
-    init(authUseCase: AuthUseCaseInterface, infos: ResetPasswordInfosForPassword) {
-        self.authUseCase = authUseCase
+    init(updatePasswordUseCase: UpdatePasswordUseCase, infos: ResetPasswordInfosForPassword) {
+        self.updatePasswordUseCase = updatePasswordUseCase
         self.infos = infos
     }
     
@@ -130,27 +132,29 @@ extension ResetPasswordModel {
         } 
         // 비밀번호가 일치하는 경우 서버 통신
         else {
-            let request = ResetPasswordRequest(
+            let request = UpdatePasswordRequest(
                 username: self.infos.nickname,
                 email: self.infos.email,
                 newPassword: self.password2
             )
             
-            self.authUseCase.updatePassword(request: request) { [weak self] result in
-                switch result {
-                case .success(let simpleResponse):
-                    self?.validPassword2 = simpleResponse.data
-                case .failure(let error):
-                    self?.validPassword2 = false
-                    switch error {
-                    case .NOTFOUND(_):
-                        self?.errorMessage = .notExist
-                    default:
-                        self?.errorMessage = .serverError
-                        print("Error: \(error.title), \(error.message)")
+            self.updatePasswordUseCase.execute(request: request)
+                .sink { [weak self] completion in
+                    if case .failure(let networkError) = completion {
+                        print("ERROR", #function, networkError)
+                        self?.validPassword2 = false
+                        switch networkError {
+                        case .NOTFOUND(_):
+                            self?.errorMessage = .notExist
+                        default:
+                            self?.errorMessage = .serverError
+                            print(networkError.alertMessage)
+                        }
                     }
+                } receiveValue: { [weak self] success in
+                    self?.validPassword2 = success
                 }
-            }
+                .store(in: &self.cancellables)
         }
     }
     

@@ -2,104 +2,54 @@
 //  AuthRepository.swift
 //  Project_Timer
 //
-//  Created by Kang Minsang on 2023/12/15.
-//  Copyright © 2023 FDEE. All rights reserved.
+//  Created by Kang Minsang on 2024/05/22.
+//  Copyright © 2024 FDEE. All rights reserved.
 //
 
 import Foundation
+import Moya
+import Combine
+import CombineMoya
 
-final class AuthRepository: AuthRepositoryInterface {
-    private let api = AuthAPI()
+final class AuthRepository {
+    private let api: TTProvider<AuthAPI>
     
-    func signup(signupInfo: TestUserSignupInfo, completion: @escaping (Result<AuthInfo, NetworkError>) -> Void) {
-        api.signup(signupInfo: signupInfo) { result in
-            switch result.status {
-            case .SUCCESS:
-                guard let data = result.data,
-                      let dto = try? JSONDecoder().decode(AuthDTO.self, from: data) else {
-                    completion(.failure(.DECODEERROR))
-                    return
-                }
-                
-                let info = dto.toDomain()
-                completion(.success(info))
-                
-            default:
-                completion(.failure(.error(result)))
-            }
-        }
+    init(api: TTProvider<AuthAPI>) {
+        self.api = api
     }
     
-    func signin(signinInfo: TestUserSigninInfo, completion: @escaping (Result<AuthInfo, NetworkError>) -> Void) {
-        api.signin(signinInfo: signinInfo) { result in
-            switch result.status {
-            case .SUCCESS:
-                guard let data = result.data,
-                      let dto = try? JSONDecoder().decode(AuthDTO.self, from: data) else {
-                    completion(.failure(.DECODEERROR))
-                    return
-                }
-                
-                let info = dto.toDomain()
-                completion(.success(info))
-                
-            default:
-                completion(.failure(.error(result)))
-            }
-        }
+    func signup(request: TestUserSignupRequest) -> AnyPublisher<AuthInfo, NetworkError> {
+        return self.api.request(.postSignup(request))
+            .map(AuthResponse.self)
+            .map { $0.toDomain() }
+            .catchDecodeError()
     }
     
-    func checkUsername(username: String, completion: @escaping (Result<SimpleResponse, NetworkError>) -> Void) {
-        api.checkUsername(username: username) { result in
-            switch result.status {
-            case .SUCCESS:
-                guard let data = result.data,
-                      let dto = try? JSONDecoder().decode(SimpleResponse.self, from: data) else {
-                    completion(.failure(.DECODEERROR))
-                    return
-                }
-                
-                completion(.success(dto))
-                
-            default:
-                completion(.failure(.error(result)))
-            }
-        }
+    func signin(request: TestUserSigninRequest) -> AnyPublisher<AuthInfo, NetworkError> {
+        return self.api.request(.postSignin(request))
+            .map(AuthResponse.self)
+            .map { $0.toDomain() }
+            .catchDecodeError()
     }
     
-    func checkEmail(username: String, email: String, completion: @escaping (Result<SimpleResponse, NetworkError>) -> Void) {
-        api.checkEmail(username: username, email: email) { result in
-            switch result.status {
-            case .SUCCESS:
-                guard let data = result.data,
-                      let dto = try? JSONDecoder().decode(SimpleResponse.self, from: data) else {
-                    completion(.failure(.DECODEERROR))
-                    return
-                }
-                
-                completion(.success(dto))
-                
-            default:
-                completion(.failure(.error(result)))
-            }
-        }
+    func checkUsernameExit(request: CheckUsernameRequest) -> AnyPublisher<Bool, NetworkError> {
+        return self.api.request(.getCheckUsername(request))
+            .map(SimpleResponse.self)
+            .map { $0.toDomain() }
+            .catchDecodeError()
     }
     
-    func updatePassword(request: ResetPasswordRequest, completion: @escaping (Result<SimpleResponse, NetworkError>) -> Void) {
-        api.updatePassword(request: request) { result in
-            switch result.status {
-            case .SUCCESS:
-                guard let data = result.data,
-                      let dto = try? JSONDecoder().decode(SimpleResponse.self, from: data) else {
-                    completion(.failure(.DECODEERROR))
-                    return
-                }
-                
-                completion(.success(dto))
-                
-            default:
-                completion(.failure(.error(result)))
-            }
-        }
+    func checkEmailExit(request: CheckEmailExitRequest) -> AnyPublisher<Bool, NetworkError> {
+        return self.api.request(.getCheckEmail(request))
+            .map(SimpleResponse.self)
+            .map { $0.toDomain() }
+            .catchDecodeError()
+    }
+    
+    func updatePassword(request: UpdatePasswordRequest) -> AnyPublisher<Bool, NetworkError> {
+        return self.api.request(.postUpdatePassword(request))
+            .map(SimpleResponse.self)
+            .map { $0.toDomain() }
+            .catchDecodeError()
     }
 }

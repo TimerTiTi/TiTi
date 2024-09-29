@@ -2,49 +2,35 @@
 //  DailysRepository.swift
 //  Project_Timer
 //
-//  Created by Kang Minsang on 2023/12/16.
-//  Copyright © 2023 FDEE. All rights reserved.
+//  Created by Kang Minsang on 2024/06/09.
+//  Copyright © 2024 FDEE. All rights reserved.
 //
 
 import Foundation
+import Moya
+import Combine
+import CombineMoya
 
-final class DailysRepository: DailysRepositoryInterface {
-    private let api = DailysAPI()
+final class DailysRepository {
+    private let api: TTProvider<DailysAPI>
     
-    func upload(dailys: [Daily], completion: @escaping (Result<Bool, NetworkError>) -> Void) {
-        api.upload(dailys: dailys) { result in
-            switch result.status {
-            case .SUCCESS:
-                completion(.success(true))
-            default:
-                completion(.failure(.error(result)))
-            }
-        }
+    init(api: TTProvider<DailysAPI>) {
+        self.api = api
     }
     
-    func get(completion: @escaping (Result<[Daily], NetworkError>) -> Void) {
-        api.get { result in
-            switch result.status {
-            case .SUCCESS:
-                guard let data = result.data,
-                      let dtos = try? JSONDecoder.dateFormatted.decode([DailyDTO].self, from: data) else {
-                    completion(.failure(.DECODEERROR))
-                    return
-                }
-                
-                let dailys = dtos.map { $0.toDomain() }
-                completion(.success(dailys))
-            default:
-                completion(.failure(.error(result)))
-            }
-        }
+    func uploadDailys(request: [Daily]) -> AnyPublisher<Bool, NetworkError> {
+        let headers: [String: String] = [
+            "gmt": "\(TimeZone.current.secondsFromGMT())"
+        ]
+        return self.api.request(.postDailys(body: request, headers: headers))
+            .map { _ in true }
+            .catchDecodeError()
     }
     
-    func store(dailys: [Daily], completion: @escaping (Result<Bool, Error>) -> Void) {
-        
-    }
-    
-    func fetch(completion: @escaping (Result<[Daily], Error>) -> Void) {
-        
+    func getDailys() -> AnyPublisher<[Daily], NetworkError> {
+        return self.api.request(.getDailys)
+            .map([DailyResponse].self)
+            .map { $0.map { $0.toDomain() } }
+            .catchDecodeError()
     }
 }

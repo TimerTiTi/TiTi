@@ -7,6 +7,8 @@
 //
 
 import SwiftUI
+import Combine
+import Moya
 
 struct ResetPasswordEmailView: View {
     @ObservedObject private var keyboard = KeyboardResponder.shared
@@ -32,12 +34,11 @@ struct ResetPasswordEmailView: View {
             .navigationDestination(for: ResetPasswordEmailRoute.self) { destination in
                 switch destination {
                 case .resetPassword:
-                    let authUseCase = self.model.authUseCase
-                    let infos = self.model.resetPasswordInfosForPassword
-                    let viewModel = ResetPasswordModel(
-                        authUseCase: authUseCase,
-                        infos: infos
-                    )
+                    // TODO: DI 수정
+                    let api = TTProvider<AuthAPI>(session: Session(interceptor: NetworkInterceptor.shared))
+                    let repository = AuthRepository(api: api)
+                    let updatePasswordUseCase = UpdatePasswordUseCase(repository: repository)
+                    let viewModel = ResetPasswordModel(updatePasswordUseCase: updatePasswordUseCase, infos: model.resetPasswordInfosForPassword)
                     ResetPasswordView(model: viewModel)
                 }
             }
@@ -99,13 +100,13 @@ struct ResetPasswordEmailView: View {
 
 struct ResetPasswordEmailView_Previews: PreviewProvider {
     static var previews: some View {
-        ResetPasswordEmailView(
-            model: ResetPasswordEmailModel(authUseCase: AuthUseCase(repository: AuthRepository()), infos: ResetPasswordInfosForEmail(nickname: "minsang")))
-        .environmentObject(ResetPasswordEnvironment())
+        // TODO: DI 수정
+        let api = TTProvider<AuthAPI>(session: Session(interceptor: NetworkInterceptor.shared))
+        let repository = AuthRepository(api: api)
+        let checkEmailExitUseCase = CheckEmailExitUseCase(repository: repository)
+        let viewModel = ResetPasswordEmailModel(checkEmailExitUseCase: checkEmailExitUseCase, infos: .init(nickname: "minsang"))
         
-        ResetPasswordEmailView(
-            model: ResetPasswordEmailModel(authUseCase: AuthUseCase(repository: AuthRepository()), infos: ResetPasswordInfosForEmail(nickname: "minsang")))
+        ResetPasswordEmailView(model: viewModel)
         .environmentObject(ResetPasswordEnvironment())
-        .environment(\.locale, .init(identifier: "en"))
     }
 }

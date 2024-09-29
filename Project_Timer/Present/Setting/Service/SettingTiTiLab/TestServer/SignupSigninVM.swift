@@ -10,68 +10,78 @@ import Foundation
 import Combine
 
 final class SignupSigninVM {
-    private let authUseCase: AuthUseCaseInterface
+    private let signupUseCase: SignupUseCase
+    private let signinUseCase: SigninUseCase
     let isSignin: Bool
     @Published var loadingText: String?
     @Published var alert: (title: String, text: String)?
     @Published var postable: Bool = false
     @Published var signinSuccess: Bool = false
+    // Combine binding
+    private var cancellables = Set<AnyCancellable>()
     
-    init(authUseCase: AuthUseCaseInterface,
-        isSignin: Bool) {
-        self.authUseCase = authUseCase
+    init(signupUseCase: SignupUseCase, signinUseCase: SigninUseCase, isSignin: Bool) {
+        self.signupUseCase = signupUseCase
+        self.signinUseCase = signinUseCase
         self.isSignin = isSignin
         
         self.checkServerURL()
     }
     
     private func checkServerURL() {
-        NetworkURL.shared.updateServerURL { [weak self] in
-            if NetworkURL.shared.serverURL == nil {
-                self?.alert = (title: Localized.string(.Server_Popup_ServerCantUseTitle), text: Localized.string(.Server_Popup_ServerCantUseDesc))
+        NetworkURL.shared.getServerURL()
+            .sink { [weak self] url in
+                if url == nil {
+                    self?.alert = (title: Localized.string(.Server_Popup_ServerCantUseTitle), text: Localized.string(.Server_Popup_ServerCantUseDesc))
+                }
             }
-        }
+            .store(in: &self.cancellables)
+        
     }
     
-    func signup(info: TestUserSignupInfo) {
+    func signup(request: TestUserSignupRequest) {
         self.loadingText = "Waiting for Signup..."
-        self.authUseCase.signup(signupInfo: info) { [weak self] result in
-            self?.loadingText = nil
-            switch result {
-            case .success(let token):
-                self?.saveUserInfo(username: info.username, password: info.password, token: token)
-            case .failure(let error):
-                switch error {
-                    // signup 관련 error message 추가
-                case .CLIENTERROR(_):
-                    self?.alert = (title: Localized.string(.SignUp_Error_SignupError), text: Localized.string(.SignUp_Error_CheckNicknameOrEmail))
-                default:
-                    self?.alert = error.alertMessage
+        self.signupUseCase.execute(request: request)
+            .sink { [weak self] completion in
+                self?.loadingText = nil
+                if case .failure(let networkError) = completion {
+                    print("ERROR", #function, networkError)
+                    switch networkError {
+                        // signup 관련 error message 추가
+                    case .CLIENTERROR(_):
+                        self?.alert = (title: Localized.string(.SignUp_Error_SignupError), text: Localized.string(.SignUp_Error_CheckNicknameOrEmail))
+                    default:
+                        self?.alert = networkError.alertMessage
+                    }
                 }
+            } receiveValue: { [weak self] authInfo in
+                self?.saveUserInfo(authInfo: authInfo, password: request.password)
             }
-        }
+            .store(in: &self.cancellables)
     }
     
-    func signin(info: TestUserSigninInfo) {
+    func signin(request: TestUserSigninRequest) {
         self.loadingText = "Waiting for Signin..."
-        self.authUseCase.signin(signinInfo: info) { [weak self] result in
-            self?.loadingText = nil
-            switch result {
-            case .success(let token):
-                self?.saveUserInfo(username: info.username, password: info.password, token: token)
-            case .failure(let error):
-                switch error {
-                    // signin 관련 error message 추가
-                case .CLIENTERROR(_):
-                    self?.alert = (title: Localized.string(.SignIn_Error_SigninFail), text: Localized.string(.SignIn_Error_CheckNicknameOrPassword))
-                    // TestServer 에러핸들링 이슈로 404코드 추가
-                case .NOTFOUND(_):
-                    self?.alert = (title: Localized.string(.SignIn_Error_SigninFail), text: Localized.string(.SignIn_Error_CheckNicknameOrPassword))
-                default:
-                    self?.alert = error.alertMessage
+        self.signinUseCase.execute(request: request)
+            .sink { [weak self] completion in
+                self?.loadingText = nil
+                if case .failure(let networkError) = completion {
+                    print("ERROR", #function, networkError)
+                    switch networkError {
+                        // signin 관련 error message 추가
+                    case .CLIENTERROR(_):
+                        self?.alert = (title: Localized.string(.SignIn_Error_SigninFail), text: Localized.string(.SignIn_Error_CheckNicknameOrPassword))
+                        // TestServer 에러핸들링 이슈로 404코드 추가
+                    case .NOTFOUND(_):
+                        self?.alert = (title: Localized.string(.SignIn_Error_SigninFail), text: Localized.string(.SignIn_Error_CheckNicknameOrPassword))
+                    default:
+                        self?.alert = networkError.alertMessage
+                    }
                 }
+            } receiveValue: { [weak self] authInfo in
+                self?.saveUserInfo(authInfo: authInfo, password: request.password)
             }
-        }
+            .store(in: &self.cancellables)
     }
     
     func check(nickname: String?, email: String?, password: String?) {
@@ -82,11 +92,11 @@ final class SignupSigninVM {
         }
     }
     
-    private func saveUserInfo(username: String, password: String, token: String) {
+    private func saveUserInfo(authInfo: AuthInfo, password: String) {
         // MARK: Token 저장, Noti signined
-        guard [KeyChain.shared.save(key: .username, value: username),
+        guard [KeyChain.shared.save(key: .username, value: authInfo.username),
                KeyChain.shared.save(key: .password, value: password),
-               KeyChain.shared.save(key: .token, value: token)].allSatisfy({ $0 }) == true else {
+               KeyChain.shared.save(key: .token, value: authInfo.token)].allSatisfy({ $0 }) == true else {
             self.alert = (title: "Keychain save fail", text: "")
             return
         }

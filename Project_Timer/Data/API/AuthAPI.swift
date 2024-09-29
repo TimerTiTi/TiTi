@@ -2,63 +2,65 @@
 //  AuthAPI.swift
 //  Project_Timer
 //
-//  Created by Kang Minsang on 2023/12/15.
-//  Copyright © 2023 FDEE. All rights reserved.
+//  Created by Kang Minsang on 2024/04/17.
+//  Copyright © 2024 FDEE. All rights reserved.
 //
 
 import Foundation
+import Moya
 
-final class AuthAPI {
-    private let network = Network()
-    private var signupURL: String {
-        let base = NetworkURL.shared.serverURL ?? "nil"
-        return base + "/auth/signup"
-    }
-    private var signinURL: String {
-        let base = NetworkURL.shared.serverURL ?? "nil"
-        return base + "/auth/login"
-    }
-    private var checkUsersURL: String {
-        let base = NetworkURL.shared.serverURL ?? "nil"
-        return base + "/auth/users"
-    }
-    private var resetPasswordURL: String {
-        let base = NetworkURL.shared.serverURL ?? "nil"
-        return base + "/auth/users/password"
+enum AuthAPI {
+    case postSignup(TestUserSignupRequest)
+    case postSignin(TestUserSigninRequest)
+    case getCheckUsername(CheckUsernameRequest)
+    case getCheckEmail(CheckEmailExitRequest)
+    case postUpdatePassword(UpdatePasswordRequest)
+}
+
+extension AuthAPI: TargetType {
+    var baseURL: URL {
+        return URL(string: NetworkURL.shared.serverURL ?? "nil")!
     }
     
-    func signup(signupInfo: TestUserSignupInfo, completion: @escaping (NetworkResult) -> Void) {
-        self.network.request(url: self.signupURL, method: .post, param: nil, body: signupInfo) { result in
-            completion(result)
+    var path: String {
+        switch self {
+        case .postSignup:
+            return "/auth/signup"
+        case .postSignin:
+            return "/auth/login"
+        case .getCheckUsername, .getCheckEmail:
+            return "/auth/users"
+        case .postUpdatePassword:
+            return "/auth/users/password"
         }
     }
     
-    func signin(signinInfo: TestUserSigninInfo, completion: @escaping (NetworkResult) -> Void) {
-        self.network.request(url: self.signinURL, method: .post, param: nil, body: signinInfo) { result in
-            completion(result)
+    var method: Moya.Method {
+        switch self {
+        case .postSignup, .postSignin, .postUpdatePassword:
+            return .post
+        case .getCheckUsername, .getCheckEmail:
+            return .get
         }
     }
     
-    func checkUsername(username: String, completion: @escaping (NetworkResult) -> Void) {
-        self.network.request(url: self.checkUsersURL, method: .get, param: [
-            "username": username
-        ]) { result in
-            completion(result)
+    var task: Moya.Task {
+        switch self {
+        case .postSignup(let request):
+            return .requestJSONEncodable(request)
+        case .postSignin(let request):
+            return .requestJSONEncodable(request)
+        case .getCheckUsername(let request):
+            return .requestParameters(parameters: Self.parameters(from: request), encoding: URLEncoding.queryString)
+        case .getCheckEmail(let request):
+            return .requestParameters(parameters: Self.parameters(from: request), encoding: URLEncoding.queryString)
+        case .postUpdatePassword(let request):
+            return .requestJSONEncodable(request)
         }
     }
     
-    func checkEmail(username: String, email: String, completion: @escaping (NetworkResult) -> Void) {
-        self.network.request(url: self.checkUsersURL, method: .get, param: [
-            "username": username,
-            "email": email
-        ]) { result in
-            completion(result)
-        }
-    }
-    
-    func updatePassword(request: ResetPasswordRequest, completion: @escaping (NetworkResult) -> Void) {
-        self.network.request(url: self.resetPasswordURL, method: .post, body: request) { result in
-            completion(result)
-        }
+    var headers: [String: String]? {
+        return nil
     }
 }
+

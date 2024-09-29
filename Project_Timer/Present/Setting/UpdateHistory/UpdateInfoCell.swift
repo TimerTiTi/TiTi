@@ -15,7 +15,7 @@ final class UpdateInfoCell: UICollectionViewCell {
     @IBOutlet weak var dateLabel: UILabel!
     @IBOutlet weak var textLabel: UILabel!
     
-    func configure(with info: UpdateInfo, superWidth: CGFloat) {
+    func configure(with info: UpdateHistoryInfo, superWidth: CGFloat) {
         self.versionLabel.text = "ver \(info.version.value)"
         self.dateLabel.text = "\(info.date.value)"
         self.textLabel.text = info.text.value

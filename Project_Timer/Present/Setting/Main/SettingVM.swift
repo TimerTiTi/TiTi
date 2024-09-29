@@ -10,14 +10,16 @@ import Foundation
 import Combine
 
 final class SettingVM {
-    private let getLatestVersionUseCase: GetLatestVersionUseCaseInterface
+    private let getAppVersionUseCase: GetAppVersionUseCase
     @Published private(set) var cells: [[SettingCellInfo]] = []
     @Published private(set) var latestVersionFetched: Bool = false
     private(set) var sections: [String] = []
     private let isIpad: Bool
+    // Combine binding
+    private var cancellables = Set<AnyCancellable>()
     
-    init(getLatestVersionUseCase: GetLatestVersionUseCaseInterface, isIpad: Bool) {
-        self.getLatestVersionUseCase = getLatestVersionUseCase
+    init(getAppVersionUseCase: GetAppVersionUseCase, isIpad: Bool) {
+        self.getAppVersionUseCase = getAppVersionUseCase
         self.isIpad = isIpad
         self.configureSections()
         self.configureCells()
@@ -85,14 +87,15 @@ final class SettingVM {
         
         self.cells = cells
         
-        self.getLatestVersionUseCase.getLatestVersion { [weak self] result in
-            switch result {
-            case .success(let latestVersionInfo):
-                versionCell.updateSubTitle(to: Localized.string(.Settings_Button_VersionInfoDesc)+": \(latestVersionInfo.latestVersion)")
-                self?.latestVersionFetched = true
-            case .failure(let error):
-                print(error.alertMessage)
-            }
-        }
+        self.getAppVersionUseCase.execute()
+          .sink { completion in
+              if case .failure(let networkError) = completion {
+                  print("ERROR", #function, networkError)
+              }
+          } receiveValue: { [weak self] appLatestVersionInfo in
+              versionCell.updateSubTitle(to: Localized.string(.Settings_Button_VersionInfoDesc)+": \(appLatestVersionInfo.latestVersion)")
+              self?.latestVersionFetched = true
+          }
+          .store(in: &self.cancellables)
     }
 }

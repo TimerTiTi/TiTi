@@ -8,6 +8,7 @@
 
 import UIKit
 import Combine
+import Moya
 import MessageUI
 
 class SignupSigninVC: WhiteNavigationVC {
@@ -316,10 +317,10 @@ extension SignupSigninVC {
                   let password = self?.passwordTextField.textField.text else { return }
             
             if self?.viewModel.isSignin == true {
-                self?.viewModel.signin(info: TestUserSigninInfo(username: username, password: password))
+                self?.viewModel.signin(request: TestUserSigninRequest(username: username, password: password))
             } else {
                 guard let email = self?.emailTextField.textField.text else { return }
-                self?.viewModel.signup(info: TestUserSignupInfo(username: username, email: email, password: password))
+                self?.viewModel.signup(request: TestUserSignupRequest(username: username, email: email, password: password))
             }
         }), for: .touchUpInside)
         
@@ -513,8 +514,13 @@ import SwiftUI
 
 #Preview {
     UIViewControllerPreview {
-        let authUseCase = AuthUseCase(repository: AuthRepository())
-        let viewModel = SignupSigninVM(authUseCase: authUseCase, isSignin: false)
+        // TODO: DI 수정
+        let api = TTProvider<AuthAPI>(session: Session(interceptor: NetworkInterceptor.shared))
+        let repository = AuthRepository(api: api)
+        let signupUseCase = SignupUseCase(repository: repository)
+        let signinUseCase = SigninUseCase(repository: repository)
+        
+        let viewModel = SignupSigninVM(signupUseCase: signupUseCase, signinUseCase: signinUseCase, isSignin: false)
         return SignupSigninVC(viewModel: viewModel)
     }
 }

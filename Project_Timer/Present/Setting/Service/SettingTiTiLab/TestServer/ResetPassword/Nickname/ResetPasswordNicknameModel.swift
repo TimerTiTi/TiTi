@@ -8,6 +8,7 @@
 
 import Foundation
 import SwiftUI
+import Combine
 
 // MARK: State
 final class ResetPasswordNicknameModel: ObservableObject {
@@ -28,13 +29,14 @@ final class ResetPasswordNicknameModel: ObservableObject {
     @Published var focus: TTSignupTextFieldView.type?
     @Published var validNickname: Bool?
     @Published var errorMessage: ErrorMessage?
-    
     @Published var nickname: String = ""
+    // Combine binding
+    private var cancellables = Set<AnyCancellable>()
     
-    let authUseCase: AuthUseCaseInterface
+    private let checkUsenameExitUseCase: CheckUsernameExitUseCsae
     
-    init(authUseCase: AuthUseCaseInterface) {
-        self.authUseCase = authUseCase
+    init(checkUsenameExitUseCase: CheckUsernameExitUseCsae) {
+        self.checkUsenameExitUseCase = checkUsenameExitUseCase
     }
     
     var nicknameWarningVisible: Bool {
@@ -76,20 +78,22 @@ extension ResetPasswordNicknameModel {
     
     // nickname done 액션
     func checkNickname() {
-        self.authUseCase.checkUsername(username: self.nickname) { [weak self] result in
-            switch result {
-            case .success(let simpleResponse):
-                self?.validNickname = simpleResponse.data
-            case .failure(let error):
-                self?.validNickname = false
-                switch error {
-                case .NOTFOUND(_):
-                    self?.errorMessage = .notExist
-                default:
-                    self?.errorMessage = .serverError
-                    print("Error: \(error.title), \(error.message)")
+        self.checkUsenameExitUseCase.execute(request: .init(username: self.nickname))
+            .sink { [weak self] completion in
+                if case .failure(let networkError) = completion {
+                    print("ERROR", #function, networkError)
+                    self?.validNickname = false
+                    switch networkError {
+                    case .NOTFOUND(_):
+                        self?.errorMessage = .notExist
+                    default:
+                        self?.errorMessage = .serverError
+                        print(networkError.alertMessage)
+                    }
                 }
+            } receiveValue: { [weak self] valid in
+                self?.validNickname = valid
             }
-        }
+            .store(in: &self.cancellables)
     }
 }

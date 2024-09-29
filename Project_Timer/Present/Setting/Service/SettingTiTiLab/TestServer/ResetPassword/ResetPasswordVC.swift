@@ -8,6 +8,7 @@
 
 import UIKit
 import Combine
+import Moya
 import SwiftUI
 
 final class ResetPasswordVC: PortraitVC {
@@ -30,10 +31,12 @@ final class ResetPasswordVC: PortraitVC {
     private func configureHostingVC() {
         guard let environment = self.environment else { return }
         
-        let authRepository = AuthRepository()
-        let authUseCase = AuthUseCase(repository: authRepository)
-        let resetPasswordNicknameModel = ResetPasswordNicknameModel(authUseCase: authUseCase)
-        let hostingVC = UIHostingController(rootView: ResetPasswordNicknameView(model: resetPasswordNicknameModel).environmentObject(environment))
+        // TODO: DI 수정
+        let api = TTProvider<AuthAPI>(session: Session(interceptor: NetworkInterceptor.shared))
+        let repository = AuthRepository(api: api)
+        let checkUsernameExitUseCase = CheckUsernameExitUseCsae(repository: repository)
+        let viewModel = ResetPasswordNicknameModel(checkUsenameExitUseCase: checkUsernameExitUseCase)
+        let hostingVC = UIHostingController(rootView: ResetPasswordNicknameView(model: viewModel).environmentObject(environment))
         self.addChild(hostingVC)
         hostingVC.didMove(toParent: self)
         

@@ -2,33 +2,65 @@
 //  DailysAPI.swift
 //  Project_Timer
 //
-//  Created by Kang Minsang on 2023/12/16.
-//  Copyright © 2023 FDEE. All rights reserved.
+//  Created by Kang Minsang on 2024/04/17.
+//  Copyright © 2024 FDEE. All rights reserved.
 //
 
 import Foundation
+import Moya
 
-final class DailysAPI {
-    private let network = Network()
-    private var uploadDailysURL: String {
-        let base = NetworkURL.shared.serverURL ?? "nil"
-        return base + "/dailys/upload"
-    }
-    private var getDailysURL: String {
-        let base = NetworkURL.shared.serverURL ?? "nil"
-        return base + "/dailys"
+enum DailysAPI {
+    case postDailys(body: [Daily], headers: [String: String])
+    case getDailys
+    case postRecordTime(RecordTimes)
+    case getRecordTime
+    case getSyncLog
+}
+
+extension DailysAPI: TargetType {
+    var baseURL: URL {
+        return URL(string: NetworkURL.shared.serverURL ?? "nil")!
     }
     
-    func upload(dailys: [Daily], completion: @escaping (NetworkResult) -> Void) {
-        let param = ["gmt": TimeZone.current.secondsFromGMT()]
-        self.network.request(url: uploadDailysURL, method: .post, param: param, body: dailys) { result in
-            completion(result)
+    var path: String {
+        switch self {
+        case .postDailys:
+            return "/dailys/upload"
+        case .getDailys:
+            return "/dailys"
+        case .postRecordTime, .getRecordTime:
+            return "/recordTime"
+        case .getSyncLog:
+            return "/syncLog"
         }
     }
     
-    func get(completion: @escaping (NetworkResult) -> Void) {
-        self.network.request(url: getDailysURL, method: .get) { result in
-            completion(result)
+    var method: Moya.Method {
+        switch self {
+        case .postDailys, .postRecordTime:
+            return .post
+        case .getDailys, .getRecordTime, .getSyncLog:
+            return .get
+        }
+    }
+    
+    var task: Moya.Task {
+        switch self {
+        case .postDailys(let body, _):
+            return .requestCustomJSONEncodable(body, encoder: .dateFormatted)
+        case .postRecordTime(let recordTimes):
+            return .requestCustomJSONEncodable(recordTimes, encoder: .dateFormatted)
+        default:
+            return .requestPlain
+        }
+    }
+    
+    var headers: [String : String]? {
+        switch self {
+        case .postDailys(_, let headers):
+            return headers
+        default:
+            return nil
         }
     }
 }

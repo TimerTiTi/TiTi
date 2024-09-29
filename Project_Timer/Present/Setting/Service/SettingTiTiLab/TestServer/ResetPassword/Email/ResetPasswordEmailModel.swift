@@ -8,6 +8,7 @@
 
 import Foundation
 import SwiftUI
+import Combine
 
 // MARK: State
 final class ResetPasswordEmailModel: ObservableObject {
@@ -30,12 +31,14 @@ final class ResetPasswordEmailModel: ObservableObject {
     @Published var errorMessage: ErrorMessage?
     
     @Published var email: String = ""
+    // Combine binding
+    private var cancellables = Set<AnyCancellable>()
     
-    let authUseCase: AuthUseCaseInterface
+    private let checkEmailExitUseCase: CheckEmailExitUseCase
     private let infos: ResetPasswordInfosForEmail
     
-    init(authUseCase: AuthUseCaseInterface, infos: ResetPasswordInfosForEmail) {
-        self.authUseCase = authUseCase
+    init(checkEmailExitUseCase: CheckEmailExitUseCase, infos: ResetPasswordInfosForEmail) {
+        self.checkEmailExitUseCase = checkEmailExitUseCase
         self.infos = infos
     }
     
@@ -79,20 +82,22 @@ extension ResetPasswordEmailModel {
     
     // email done 액션
     func checkEmail() {
-        self.authUseCase.checkEmail(username: self.infos.nickname, email: self.email) { [weak self] result in
-            switch result {
-            case .success(let simpleResponse):
-                self?.validEmail = simpleResponse.data
-            case .failure(let error):
-                self?.validEmail = false
-                switch error {
-                case .NOTFOUND(_):
-                    self?.errorMessage = .notExist
-                default:
-                    self?.errorMessage = .serverError
-                    print("Error: \(error.title), \(error.message)")
+        self.checkEmailExitUseCase.execute(request: .init(username: self.infos.nickname, email: self.email))
+            .sink { [weak self] completion in
+                if case .failure(let networkError) = completion {
+                    print("ERROR", #function, networkError)
+                    self?.validEmail = false
+                    switch networkError {
+                    case .NOTFOUND(_):
+                        self?.errorMessage = .notExist
+                    default:
+                        self?.errorMessage = .serverError
+                        print(networkError.alertMessage)
+                    }
                 }
+            } receiveValue: { [weak self] valid in
+                self?.validEmail = valid
             }
-        }
+            .store(in: &self.cancellables)
     }
 }

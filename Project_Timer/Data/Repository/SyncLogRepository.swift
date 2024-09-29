@@ -2,33 +2,26 @@
 //  SyncLogRepository.swift
 //  Project_Timer
 //
-//  Created by Kang Minsang on 2023/12/16.
-//  Copyright © 2023 FDEE. All rights reserved.
+//  Created by Kang Minsang on 2024/06/29.
+//  Copyright © 2024 FDEE. All rights reserved.
 //
 
 import Foundation
+import Moya
+import Combine
+import CombineMoya
 
-final class SyncLogRepository: SyncLogRepositoryInterface {
-    private let api = SyncLogAPI()
+final class SyncLogRepository {
+    private let api: TTProvider<DailysAPI>
     
-    func get(completion: @escaping (Result<SyncLog?, NetworkError>) -> Void) {
-        api.get { result in
-            switch result.status {
-            case .SUCCESS:
-                if let data = result.data {
-                    guard let dto = try? JSONDecoder.dateFormatted.decode(SyncLogDTO.self, from: data) else {
-                        completion(.failure(.DECODEERROR))
-                        return
-                    }
-                    
-                    let info = dto.toDomain()
-                    completion(.success(info))
-                } else {
-                    completion(.success(nil))
-                }
-            default:
-                completion(.failure(.error(result)))
-            }
-        }
+    init(api: TTProvider<DailysAPI>) {
+        self.api = api
+    }
+    
+    func get() -> AnyPublisher<SyncLog, NetworkError> {
+        return self.api.request(.getSyncLog)
+            .map(SyncLogResponse.self)
+            .map { $0.toDomain() }
+            .catchDecodeError()
     }
 }

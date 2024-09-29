@@ -9,6 +9,8 @@
 import UIKit
 import Combine
 import MessageUI
+import Moya
+import Combine
 
 final class SettingVC: UIViewController {
     static let identifier = "SettingVC"
@@ -60,8 +62,11 @@ extension SettingVC {
     }
     
     private func configureViewModel() {
-        let getLatestVersionUseCase = GetLatestVersionUseCase(repository: AppLatestVersionRepository())
-        self.viewModel = SettingVM(getLatestVersionUseCase: getLatestVersionUseCase, isIpad: UIDevice.current.userInterfaceIdiom == .pad)
+        // TODO: DI 수정
+        let api = TTProvider<FirebaseAPI>(session: Session(interceptor: NetworkInterceptor.shared))
+        let repository = FirebaseRepository(api: api)
+        let getAppVersionUseCase = GetAppVersionUseCase(repository: repository)
+        self.viewModel = SettingVM(getAppVersionUseCase: getAppVersionUseCase, isIpad: UIDevice.current.userInterfaceIdiom == .pad)
     }
     
     private func bindAll() {

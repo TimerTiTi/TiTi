@@ -12,6 +12,8 @@ import FirebaseAnalytics
 import GoogleMobileAds
 import WidgetKit
 import GoogleSignIn
+import Moya
+import Combine
 
 @UIApplicationMain
 final class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -21,6 +23,8 @@ final class AppDelegate: UIResponder, UIApplicationDelegate {
     }
     // 화면 회전을 제어할 변수 선언
     var shouldSupportPortraitOrientation = false
+    // Combine binding
+    private var cancellables = Set<AnyCancellable>()
     
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         self.checkLatestVersion(isLaunch: true)
@@ -101,17 +105,23 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
 
 // MARK: Configure
 extension AppDelegate {
+    /// 최신버전 체크
     private func checkLatestVersion(isLaunch: Bool) {
-        /// 최신버전 체크로직
-        let getLatestVersionUseCase = GetLatestVersionUseCase(repository: AppLatestVersionRepository())
+        // TODO: DI 수정
+        let api = TTProvider<FirebaseAPI>(session: Session(interceptor: NetworkInterceptor.shared))
+        let repository = FirebaseRepository(api: api)
+        let getAppVersionUseCase = GetAppVersionUseCase(repository: repository)
         
-        getLatestVersionUseCase.getLatestVersion { result in
-            switch result {
-            case .success(let latestVersionInfo):
-                let storeVersion = latestVersionInfo.latestVersion
+        getAppVersionUseCase.execute()
+            .sink { completion in
+                if case .failure(let networkError) = completion {
+                    print("ERROR", #function, networkError)
+                }
+            } receiveValue: { [weak self] appLatestVersionInfo in
+                let storeVersion = appLatestVersionInfo.latestVersion
                 guard storeVersion.compare(String.currentVersion, options: .numeric) == .orderedDescending else { return }
                 
-                if latestVersionInfo.forced == true {
+                if appLatestVersionInfo.forced == true {
                     // MARK: 강제 업데이트 필요 Alert 표시
                     let title = Localized.string(.Update_Popup_HardUpdateTitle)
                     let text = Localized.string(.Update_Popup_HardUpdateDesc)
@@ -124,7 +134,7 @@ extension AppDelegate {
                             }
                         }
                     }
-                    self.showAlert(title: title, text: text, actions: [ok])
+                    self?.showAlert(title: title, text: text, actions: [ok])
                 } else if isLaunch == true && UserDefaultsManager.get(forKey: .updatePushable) as? Bool ?? true {
                     // MARK: 업데이트 Alert 표시
                     let title = Localized.string(.Update_Pupup_SoftUpdateTitle)
@@ -137,13 +147,10 @@ extension AppDelegate {
                             UIApplication.shared.open(url, options: [:])
                         }
                     }
-                    self.showAlert(title: title, text: text, actions: [pass, update])
+                    self?.showAlert(title: title, text: text, actions: [pass, update])
                 }
-                
-            case .failure(let networkError):
-                print(networkError.alertMessage)
             }
-        }
+            .store(in: &self.cancellables)
     }
     
     private func showAlert(title: String, text: String?, actions: [UIAlertAction]) {
@@ -217,28 +224,27 @@ extension AppDelegate {
     }
     
     private func checkNotification() {
-        let getNotficationUseCase = GetNotificationUseCase(repository: NotificationRepository())
+        // TODO: DI 수정
+        let api = TTProvider<FirebaseAPI>(session: Session(interceptor: NetworkInterceptor.shared))
+        let repository = FirebaseRepository(api: api)
+        let getNotificationUseCase = GetNotificationUseCase(repository: repository)
         let notificationUseCase = NotificationUseCase()
         
-        getNotficationUseCase.getNoti { result in
-            switch result {
-            case .success(let noti):
-                guard let noti = noti else { return }
+        getNotificationUseCase.execute()
+            .sink { completion in
+                    if case .failure(let networkError) = completion {
+                        print("ERROR", #function, networkError)
+                    }
+            } receiveValue: { notificationInfo in
+                guard let notificationInfo = notificationInfo else { return }
                 guard notificationUseCase.isShowNotification() else { return }
                 
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    let notificationVC = NotificationVC(noti: noti, notificationUseCase: notificationUseCase)
+                    let notificationVC = NotificationVC(noti: notificationInfo, notificationUseCase: notificationUseCase)
                     SceneDelegate.sharedWindow?.rootViewController?.present(notificationVC, animated: true)
                 }
-            case .failure(let networkError):
-                switch networkError {
-                case .NOTFOUND(_):
-                    return
-                default:
-                    print(networkError.alertMessage)
-                }
             }
-        }
+            .store(in: &self.cancellables)
     }
     
     private func updateToLastestVersion() {

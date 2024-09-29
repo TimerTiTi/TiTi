@@ -10,23 +10,27 @@ import Foundation
 import Combine
 
 final class SettingTiTiLabVM {
-    let networkController: SurveysFetchable
+    let getSurveysUseCase: GetSurveysUseCase
     @Published private(set) var infos: [SurveyInfo] = []
     @Published private(set) var warning: (title: String, text: String)?
+    // Combine binding
+    private var cancellables = Set<AnyCancellable>()
     
-    init(networkController: SurveysFetchable) {
-        self.networkController = networkController
+    init(getSurveysUseCase: GetSurveysUseCase) {
+        self.getSurveysUseCase = getSurveysUseCase
         self.configureInfos()
     }
     
     private func configureInfos() {
-        self.networkController.getSurveys { [weak self] result in
-            switch result {
-            case .success(let surveyInfos):
+        self.getSurveysUseCase.execute()
+            .sink { [weak self] completion in
+                if case .failure(let networkError) = completion {
+                    print("ERROR", #function, networkError)
+                    self?.warning = networkError.alertMessage
+                }
+            } receiveValue: { [weak self] surveyInfos in
                 self?.infos = surveyInfos
-            case .failure(let error):
-                self?.warning = error.alertMessage
             }
-        }
+            .store(in: &self.cancellables)
     }
 }

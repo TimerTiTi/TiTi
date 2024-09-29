@@ -7,6 +7,8 @@
 //
 
 import SwiftUI
+import Combine
+import Moya
 
 struct ResetPasswordNicknameView: View {
     @ObservedObject private var keyboard = KeyboardResponder.shared
@@ -50,12 +52,11 @@ struct ResetPasswordNicknameView: View {
             .navigationDestination(for: ResetPasswordNicknameRoute.self) { destination in
                 switch destination {
                 case .resetPasswordEmail:
-                    let authUseCase = self.model.authUseCase
-                    let infos = model.resetPasswordInfosForEmail
-                    let viewModel = ResetPasswordEmailModel(
-                        authUseCase: authUseCase,
-                        infos: infos
-                    )
+                    // TODO: DI 수정
+                    let api = TTProvider<AuthAPI>(session: Session(interceptor: NetworkInterceptor.shared))
+                    let repository = AuthRepository(api: api)
+                    let checkEmailExitUseCase = CheckEmailExitUseCase(repository: repository)
+                    let viewModel = ResetPasswordEmailModel(checkEmailExitUseCase: checkEmailExitUseCase, infos: model.resetPasswordInfosForEmail)
                     ResetPasswordEmailView(model: viewModel)
                 }
             }
@@ -120,13 +121,14 @@ struct ResetPasswordNicknameView: View {
 
 struct ResetPasswordNicknameView_Previews: PreviewProvider {
     static var previews: some View {
-        ResetPasswordNicknameView(
-            model: ResetPasswordNicknameModel(authUseCase: AuthUseCase(repository: AuthRepository())))
-        .environmentObject(ResetPasswordEnvironment())
+        // TODO: DI 수정
+        let api = TTProvider<AuthAPI>(session: Session(interceptor: NetworkInterceptor.shared))
+        let repository = AuthRepository(api: api)
+        let checkUsernameExitUseCase = CheckUsernameExitUseCsae(repository: repository)
+        let viewModel = ResetPasswordNicknameModel(checkUsenameExitUseCase: checkUsernameExitUseCase)
         
         ResetPasswordNicknameView(
-            model: ResetPasswordNicknameModel(authUseCase: AuthUseCase(repository: AuthRepository())))
+            model: viewModel)
         .environmentObject(ResetPasswordEnvironment())
-        .environment(\.locale, .init(identifier: "en"))
     }
 }

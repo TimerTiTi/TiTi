@@ -8,6 +8,7 @@
 
 import UIKit
 import Combine
+import Moya
 
 final class SettingFunctionsListVC: UIViewController {
     static let identifier = "SettingFunctionsListVC"
@@ -40,12 +41,6 @@ final class SettingFunctionsListVC: UIViewController {
             self?.functionList.collectionViewLayout.invalidateLayout()
         }
     }
-    
-    @IBAction func goToYoutube(_ sender: Any) {
-        guard let link = self.viewModel?.youtubeLink,
-              let url = URL(string: link) else { return }
-        UIApplication.shared.open(url, options: [:])
-    }
 }
 
 extension SettingFunctionsListVC {
@@ -64,9 +59,12 @@ extension SettingFunctionsListVC {
     }
     
     private func configureViewModel() {
-        // MARK: NetworkController 를 생성하는 부분에 대한 고민이 필요
-        let networkController = NetworkController(network: Network())
-        self.viewModel = SettingFunctionsListVM(networkController: networkController)
+        // TODO: DI 수정
+        let api = TTProvider<FirebaseAPI>(session: Session(interceptor: NetworkInterceptor.shared))
+        let repository = FirebaseRepository(api: api)
+        let getTiTiFunctionsUseCase = GetTiTiFunctionsUseCase(repository: repository)
+        
+        self.viewModel = SettingFunctionsListVM(getTiTiFunctionsUseCase: getTiTiFunctionsUseCase)
     }
     
     private func stopLoader() {

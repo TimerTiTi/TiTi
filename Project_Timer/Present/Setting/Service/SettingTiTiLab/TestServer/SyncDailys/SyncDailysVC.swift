@@ -8,6 +8,7 @@
 
 import UIKit
 import Combine
+import Moya
 
 final class SyncDailysVC: UIViewController {
     static let identifier = "SyncDailysVC"
@@ -120,15 +121,26 @@ extension SyncDailysVC {
 
 extension SyncDailysVC {
     private func configureViewModel() {
-        let dailysUseCase = DailysUseCase(repository: DailysRepository())
-        let recordTimesUseCase = RecordTimesUseCase(repository: RecordTimesRepository())
-        let syncLogUseCase = SyncLogUseCase(repository: SyncLogRepository())
         let targetDailys = self.syncDeviceStatusView.configureDailys()
         
+        // TODO: DI 수정
+        let api = TTProvider<DailysAPI>(session: Session(interceptor: NetworkInterceptor.shared))
+        let dailyRepository = DailysRepository(api: api)
+        let recordTimeRepository = RecordTimesRepository(api: api)
+        let syncLogRepository = SyncLogRepository(api: api)
+        let getDailysUseCase = GetDailysUseCase(repository: dailyRepository)
+        let postDailysUseCase = PostDailysUseCase(repository: dailyRepository)
+        let getRecordTimeUseCase = GetRecordTimeUseCase(repository: recordTimeRepository)
+        let postRecordTimeUseCase = PostRecordTimeUseCase(repository: recordTimeRepository)
+        let getSyncLogUseCase = GetSyncLogUseCase(repository: syncLogRepository)
+        
         self.viewModel = SyncDailysVM(
-            dailysUseCase: dailysUseCase,
-            recordTimesUseCase: recordTimesUseCase,
-            syncLogUseCase: syncLogUseCase,
-            targetDailys: targetDailys)
+            getDailysUseCase: getDailysUseCase,
+            postDailysUseCase: postDailysUseCase,
+            getRecordTimeUseCase: getRecordTimeUseCase,
+            postRecordTimeUseCase: postRecordTimeUseCase,
+            getSyncLogUseCase: getSyncLogUseCase,
+            targetDailys: targetDailys
+        )
     }
 }

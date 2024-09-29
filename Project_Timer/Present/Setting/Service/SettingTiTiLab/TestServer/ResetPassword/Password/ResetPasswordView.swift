@@ -7,6 +7,8 @@
 //
 
 import SwiftUI
+import Combine
+import Moya
 
 struct ResetPasswordView: View {
     @ObservedObject private var keyboard = KeyboardResponder.shared
@@ -132,11 +134,14 @@ struct ResetPasswordView: View {
 }
 
 struct ResetPasswordView_Previews: PreviewProvider {
-    static let infos = SignupInfosForPassword(type: .normal, venderInfo: nil, emailInfo: SignupEmailInfo(email: "freedeveloper97@gmail.com", verificationKey: "abcd1234"))
-    
     static var previews: some View {
-        ResetPasswordView(
-            model: ResetPasswordModel(authUseCase: AuthUseCase(repository: AuthRepository()), infos: ResetPasswordInfosForPassword(nickname: "minsang", email: "freedeveloper97@gmail.com"))
-        ).environmentObject(ResetPasswordEnvironment())
+        // TODO: DI 수정
+        let api = TTProvider<AuthAPI>(session: Session(interceptor: NetworkInterceptor.shared))
+        let repository = AuthRepository(api: api)
+        let updatePasswordUseCase = UpdatePasswordUseCase(repository: repository)
+        let viewModel = ResetPasswordModel(updatePasswordUseCase: updatePasswordUseCase, infos: .init(nickname: "minsang", email: "freedeveloper97@gmail.com"))
+        
+        ResetPasswordView(model: viewModel)
+            .environmentObject(ResetPasswordEnvironment())
     }
 }
